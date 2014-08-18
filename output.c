@@ -62,22 +62,21 @@ volatile uint8_t playing_strengths[POLYPHONIC_MAX];
 
 volatile uint8_t playing_notes = 0;
 
-volatile uint16_t decrement = 0xffff;
+volatile uint16_t decrement = 1;
 volatile uint16_t rem = 0;
+volatile uint16_t conflicts=0;
 
-void timer0MidiHandler() {
-	if (rem > 0) {
-		rem--;
-		return;
-	}
+void timer1MidiHandler() {
 	int i;
 	for (i = 0; i < playing_notes; i++) {
-		playing_remaining[i]-=decrement;
+		playing_remaining[i] += decrement;
 		if(playing_remaining[i] == 0) {
-				playing_remaining[i] = playing_values[i];
+			playing_remaining[i] = playing_values[i];
 			// Already playing some note. We have collision, sorry.
-			if (TCNT2 != 0)
+			if (TCNT2 != 0) {
+				conflicts++;
 				continue;
+			}
 			// fire the note
 			//TCNT2 = playing_strengths[i];
 			TCNT2 = 255 - playing_strengths[i];
@@ -90,8 +89,8 @@ void timer0MidiHandler() {
 		}
 		
 	}
-	rem = decrement;
-	TCNT0 = MIDI_TIMER0_LOOP;
+
+	TCNT1 = 65535 - decrement;
 }
 /*
 void timer0MidiHandler() {
@@ -127,14 +126,15 @@ inline uint16_t getNote(char index) {
 void outputDispHandlerMidi(lcd_t lcd) {
 	int i;
 	int n=0;
-
-	for(i = 0; i < playing_notes; i++) {
+	putsAtLcd("CFL: ", &lcd[0][0]);
+	printIntAtLcd(conflicts, &lcd[0][5]);
+/*	for(i = 0; i < playing_notes; i++) {
 		n = n + printIntAtLcd(playing_values[i], &lcd[0][n]);
 		n = n + putsAtLcd("(", &lcd[0][n]);
 		n = n + printIntAtLcd(playing_strengths[i], &lcd[0][n]);
 		putsAtLcd(") ", &lcd[0][n]);
 		n = n + 2;
-	}
+	}*/
 }
 
 int8_t isPlaying(char index) {
@@ -158,8 +158,8 @@ void noteOn(unsigned char note, unsigned char velocity) {
 		return;
 	}
 	playing_values[playing_notes] = getNote(note);
-	//playing_remaining[playing_notes] = playing_values[playing_notes];
-	playing_remaining[playing_notes] = counter;
+	playing_remaining[playing_notes] = playing_values[playing_notes];
+	//playing_remaining[playing_notes] = counter;
 
 	// quick and dirty fix to limit power on higher levels
 	if (strength > playing_values[playing_notes]/2)
@@ -168,8 +168,10 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	playing_strengths[playing_notes] = strength;
 	playing_notes++;
 	if (playing_notes == 1) {
-		TCCR0 = (1 << CS00);
-		TCNT0 = MIDI_TIMER0_LOOP;
+		TCCR1B = (1 << CS10) | (1 << CS11);
+		TCNT1 =  playing_values[0];
+	//	decrement = playing_values[0];
+		decrement = 1;
 	}
 }
 
@@ -256,8 +258,8 @@ void outputMidiInit() {
 	OUTPUT_DDR |= (1 << OUTPUT_PIN);
 	loopHandler = outputLoopHandlerMidi;
 
-	timer0Handler = timer0MidiHandler;
-	timer1Handler = NULL;
+	timer1Handler = timer1MidiHandler;
+	timer0Handler = NULL;
 	timer2Handler = timer2MidiHandler;
 	timer3Handler = NULL;
 
@@ -270,7 +272,7 @@ void outputMidiInit() {
 	UCSR0B |= (1 << RXEN0) | (1 << RXCIE0);
 	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
 	
-	TIMSK |= (1 << TOIE0) | (1 << TOIE2);
+	TIMSK |= (1 << TOIE1) | (1 << TOIE2);
 	sei();
 }
 
