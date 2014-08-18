@@ -169,7 +169,7 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	playing_notes++;
 	if (playing_notes == 1) {
 		TCCR1B = (1 << CS10) | (1 << CS11);
-		TCNT1 =  playing_values[0];
+		TCNT1 =  65530;
 	//	decrement = playing_values[0];
 		decrement = 1;
 	}
