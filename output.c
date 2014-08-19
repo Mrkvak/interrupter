@@ -160,6 +160,8 @@ void limitPower() {
 	for(i = 0; i < playing_notes; i++) {
 		uint8_t coe = playing_notes*(playing_notes+1)*(playing_notes);
 		if ( playing_real_strengths[i] < coe )
+			coe = playing_notes*(playing_notes+1);
+		if ( playing_real_strengths[i] < coe )
 			coe = 0;
 		playing_strengths[i] = playing_real_strengths[i]-coe;
 	}
