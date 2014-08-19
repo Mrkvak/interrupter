@@ -59,41 +59,46 @@ static char midi_state = MIDI_AWAITING_COMMAND;
 volatile uint16_t playing_values[POLYPHONIC_MAX];
 volatile uint16_t playing_remaining[POLYPHONIC_MAX];
 volatile uint8_t playing_strengths[POLYPHONIC_MAX];
+volatile uint8_t playing_real_strengths[POLYPHONIC_MAX];
+
 
 volatile uint8_t playing_notes = 0;
 
-volatile uint16_t decrement = 1;
+volatile uint16_t increment = 1;
 volatile uint16_t rem = 0;
 volatile uint16_t conflicts=0;
 
 void timer1MidiHandler() {
 	int i;
-	uint16_t newdecrement=0;
-
+	uint16_t newincrement = 0;
 	for (i = 0; i < playing_notes; i++) {
-		playing_remaining[i] += decrement;
+		playing_remaining[i] += increment;
 		if(playing_remaining[i] == 65535) {
 			playing_remaining[i] = playing_values[i];
 			// Already playing some note. We have collision, sorry.
 			if (TCNT2 != 0) {
 				conflicts++;
-				continue;
+			//	continue;
 			}
 			// fire the note
 			//TCNT2 = playing_strengths[i];
 			TCNT2 = 255 - playing_strengths[i];
 			TCCR2 = (1 << CS21) | (1 << CS20);
 			OUTPUT_PORT |= (1 << OUTPUT_PIN);
-		} else {
-			if (playing_remaining[i] > newdecrement) {
-				newdecrement = playing_remaining[i];
-			}
+		}
+		if (newincrement < playing_remaining[i]) {
+			newincrement = playing_remaining[i];
 		}
 		
 	}
 
-	TCNT1 = newdecrement;
-	decrement = 65535 - newdecrement;
+	if (newincrement == 0) {
+		newincrement = playing_remaining[0];
+	} else {
+	}
+
+	TCNT1 = newincrement;
+	increment = 65535 - newincrement;
 }
 /*
 void timer0MidiHandler() {
@@ -150,6 +155,16 @@ int8_t isPlaying(char index) {
 	return -1;
 }
 
+void limitPower() {
+	int i;
+	for(i = 0; i < playing_notes; i++) {
+		uint8_t coe = playing_notes*(playing_notes+1)*(playing_notes);
+		if ( playing_real_strengths[i] < coe )
+			coe = 0;
+		playing_strengths[i] = playing_real_strengths[i]-coe;
+	}
+}
+
 static uint8_t counter = 0;
 void noteOn(unsigned char note, unsigned char velocity) {
 	if (note == 0x00 || playing_notes == POLYPHONIC_MAX)
@@ -169,11 +184,24 @@ void noteOn(unsigned char note, unsigned char velocity) {
 		strength = playing_values[playing_notes]/2;
 
 	playing_strengths[playing_notes] = strength;
+	playing_real_strengths[playing_notes] = strength;
+
 	playing_notes++;
+
 	if (playing_notes == 1) {
 		TCCR1B = (1 << CS10) | (1 << CS11);
-		TCNT1 =  playing_values[0];
-		decrement = 65535-playing_values[0];
+		increment = 65535 - playing_values[0];
+		TCNT1 = playing_values[0];
+	} else {
+		int i;
+		uint16_t newinc = 0;
+		for(i = 0; i < playing_notes; i++) {
+			if (playing_values[i] > newinc)
+				newinc = playing_values[i];
+		}
+		limitPower();
+		increment = 65535 - newinc;
+		TCNT1 = newinc;
 	}
 }
 
@@ -195,7 +223,10 @@ void noteOff(char note) {
 	if (playing_notes == 0) {
 		// no point in having timer running
 		TCCR0 = 0;
+	} else {
+		limitPower();
 	}
+
 }
 
 
