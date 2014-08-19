@@ -48,6 +48,8 @@ static unsigned char midi_data2 = 0x00;
 #define MIDI_QUEUE_SIZE	32
 #define MIDI_TIMER0_LOOP 0
 
+#define NOTE_TRANSPOSE_DOWN 0x10
+
 static volatile unsigned char midi_queue[MIDI_QUEUE_SIZE];
 static volatile uint8_t midi_queue_rear = 0;
 static volatile uint8_t midi_queue_front = 0;
@@ -68,6 +70,7 @@ volatile uint16_t increment = 1;
 volatile uint16_t rem = 0;
 volatile uint16_t conflicts=0;
 
+volatile uint16_t notes = 0;
 void timer1MidiHandler() {
 	int i;
 	uint16_t newincrement = 0;
@@ -76,10 +79,9 @@ void timer1MidiHandler() {
 		if(playing_remaining[i] == 65535) {
 			playing_remaining[i] = playing_values[i];
 			// Already playing some note. We have collision, sorry.
-			if (TCNT2 != 0) {
-				conflicts++;
+			//if (TCNT2 != 0) {
 			//	continue;
-			}
+			//}
 			// fire the note
 			//TCNT2 = playing_strengths[i];
 			TCNT2 = 255 - playing_strengths[i];
@@ -128,14 +130,18 @@ void timer2MidiHandler() {
 
 
 inline uint16_t getNote(char index) {
+	if (index>0x10)
+		index-=0x10;
+	else
+		index=0x00;
 	return pgm_read_word_near(midi_table + index);
 }
 
 void outputDispHandlerMidi(lcd_t lcd) {
 	int i;
 	int n=0;
-	putsAtLcd("CFL: ", &lcd[0][0]);
-	printIntAtLcd(conflicts, &lcd[0][5]);
+	putsAtLcd("NOTES: ", &lcd[0][0]);
+	printIntAtLcd(notes, &lcd[0][8]);
 /*	for(i = 0; i < playing_notes; i++) {
 		n = n + printIntAtLcd(playing_values[i], &lcd[0][n]);
 		n = n + putsAtLcd("(", &lcd[0][n]);
@@ -171,6 +177,7 @@ static uint8_t counter = 0;
 void noteOn(unsigned char note, unsigned char velocity) {
 	if (note == 0x00 || playing_notes == POLYPHONIC_MAX)
 		return;
+	notes++;
 	uint8_t strength = velocity/2; // TODO - some magic here
 	int8_t playing = isPlaying(note);
 	if (playing != -1) { // this note is already on, just change velocity
@@ -196,14 +203,14 @@ void noteOn(unsigned char note, unsigned char velocity) {
 		TCNT1 = playing_values[0];
 	} else {
 		int i;
-		uint16_t newinc = 0;
-		for(i = 0; i < playing_notes; i++) {
+		uint16_t newinc = 5;
+/*		for(i = 0; i < playing_notes; i++) {
 			if (playing_values[i] > newinc)
 				newinc = playing_values[i];
 		}
-		limitPower();
-		increment = 65535 - newinc;
-		TCNT1 = newinc;
+		limitPower();*/
+		increment = newinc;
+		TCNT1 = 65535 - newinc;
 	}
 }
 
@@ -214,7 +221,8 @@ void noteOff(char note) {
 	if (playing == -1 || playing_notes == 0) { // this note is already off, no-op
 		return;
 	}
-	// TODO - some kind of lock here is appropriate!
+	
+	// TODO -some kind of lock here is appropriate!
 	for(i = playing; i < playing_notes; i++) {
 		playing_values[i] = playing_values[i+1];
 		playing_remaining[i] = playing_remaining[i+1];
@@ -276,6 +284,7 @@ void outputLoopHandlerMidi() {
 			case MIDI_AWAITING_DATA2:
 				midi_data2 = packet;
 				midi_state = MIDI_AWAITING_COMMAND;
+
 				if (midi_command == MIDI_COMMAND_NOTE_OFF || ((midi_command == MIDI_COMMAND_NOTE_ON) && midi_data2 == 0x00)) // thanks MIDI guys... why have NOTE_OFF event and not using it?
 					noteOff(midi_data1 & 0x7f);
 				else if (midi_command == MIDI_COMMAND_NOTE_ON)

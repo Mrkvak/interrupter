@@ -38,7 +38,7 @@
 #define ROTARYA         PD4
 #define ROTARYB         PD5
 
-#define LCD_REFRESH     5000
+#define LCD_REFRESH     10000
 
 
 #define BTNDDR  DDRD
