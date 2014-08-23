@@ -45,13 +45,13 @@ static char *outputName;
 #define MIDI_CONTROLLER_VOLUME_C 0x07
 
 #define PITCH_BEND_ZERO		64
-#define POLYPHONIC_MAX		5
+#define POLYPHONIC_MAX		7
 
 static unsigned char midi_command = 0x00;
 static unsigned char midi_data1 = 0x00;
 static unsigned char midi_data2 = 0x00;
 
-#define MIDI_QUEUE_SIZE	32
+#define MIDI_QUEUE_SIZE	64
 #define MIDI_TIMER0_LOOP 0
 
 #define NOTE_TRANSPOSE_DOWN 0x10
@@ -68,7 +68,7 @@ volatile uint16_t playing_values_real[POLYPHONIC_MAX];
 volatile uint16_t playing_values[POLYPHONIC_MAX];
 volatile uint16_t playing_remaining[POLYPHONIC_MAX];
 volatile uint8_t playing_strengths[POLYPHONIC_MAX];
-volatile uint8_t playing_real_strengths[POLYPHONIC_MAX];
+volatile uint8_t playing_strengths_real[POLYPHONIC_MAX];
 volatile uint8_t playing_notes_idx[POLYPHONIC_MAX];
 
 
@@ -86,7 +86,6 @@ volatile uint8_t volume = 0;
 
 void applyPitchBend();
 void applyVolume();
-
 
 // logaritmus o zakladu 1.1892 a aproximovany na int :)))
 int sortOfLog(unsigned int arg) {
@@ -164,9 +163,13 @@ int sortOfLog(unsigned int arg) {
 		return 40;
 	if (arg <= 1217)
 		return 41;
-	return 42;
-
-
+	if (arg <= 1448)
+		return 42;
+	if (arg <= 1721)
+		return 43;
+	if (arg <= 2435)
+		return 44;
+	return 45;
 }
 
 void timer1MidiHandler() {
@@ -177,9 +180,9 @@ void timer1MidiHandler() {
 		if(playing_remaining[i] == 65535) {
 			playing_remaining[i] = playing_values[i];
 			// Already playing some note. We have collision, sorry.
-			//if (TCNT2 != 0) {
-			//	continue;
-			//}
+	//		if (TCNT2 != 0) {
+	//			continue;
+	//		}
 			// fire the note
 			TCNT2 = 255 - playing_strengths[i];
 			TCCR2 = (1 << CS21) | (1 << CS20);
@@ -240,7 +243,7 @@ void outputDispHandlerMidi(lcd_t lcd) {
 	int i;
 	int n=0;
 	putsAtLcd("NOTES: ", &lcd[0][0]);
-	printIntAtLcd(notes, &lcd[0][10]);
+	printIntAtLcd(playing_notes, &lcd[0][10]);
 	putsAtLcd("PitchBend: ", &lcd[1][0]);
 	printIntAtLcd(pitchBendVal, &lcd[1][10]);
 	putsAtLcd("Volume: ", &lcd[2][0]);
@@ -259,50 +262,52 @@ void outputDispHandlerMidi(lcd_t lcd) {
 int8_t isPlaying(char index) {
 	uint16_t note = getNote(index);
 	int i;
-	for( i = 0; i < POLYPHONIC_MAX; i++) {
+	for( i = 0; i < playing_notes; i++) {
 		if (playing_notes_idx[i] == index)
 			return i;
 	}
 	return -1;
 }
 
+
 void applyVolume() {
 	int i;
-	uint16_t coe = sortOfLog((int)volume*(POLYPHONIC_MAX/playing_notes))*6;
+	uint8_t coe = sortOfLog((unsigned int)volume*(10-playing_notes))*6;
 	if (coe > 1 )
 		coe--;
 	coe = 255-coe;
 	for(i = 0; i < playing_notes; i++) {
-		if ( playing_real_strengths[i] < coe)
-			playing_strengths[i] = 0;
+		if ( playing_strengths_real[i] < (coe+1))
+			playing_strengths[i] = 1;
 		else
-			playing_strengths[i] = playing_real_strengths[i]-coe;
+			playing_strengths[i] = playing_strengths_real[i]-coe;
 	}
 }
 
 static uint8_t counter = 0;
 
 void noteOn(unsigned char note, unsigned char velocity) {
-	if (note == 0x00 || playing_notes == POLYPHONIC_MAX)
+	if (playing_notes == POLYPHONIC_MAX)
 		return;
 	notes++;
 	uint8_t strength = velocity; // TODO - some magic here
 	int8_t playing = isPlaying(note);
 	if (playing != -1) { // this note is already on, just change velocity
-		playing_strengths[playing] = strength;
+	//	playing_strengths[playing] = strength;
 		return;
 	}
+
 	playing_values_real[playing_notes] = getNote(note);
 	playing_values[playing_notes] = playing_values_real[playing_notes];
 	playing_remaining[playing_notes] = playing_values[playing_notes];
 	playing_notes_idx[playing_notes] = note;
 
 	// quick and dirty fix to limit power on higher levels
-	if (strength > playing_values[playing_notes]/2)
-		strength = playing_values[playing_notes]/2;
+	if (strength > ((65535-playing_values_real[playing_notes])/5))
+		strength = (65535-playing_values_real[playing_notes])/5;
 
 	playing_strengths[playing_notes] = strength;
-	playing_real_strengths[playing_notes] = strength;
+	playing_strengths_real[playing_notes] = strength;
 
 	playing_notes++;
 	
@@ -315,15 +320,14 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	} else {
 		int i;
 		uint16_t newinc = 5;
-		if(counter>200)
-			counter = 200;
-		playing_remaining[playing_notes] = counter;
-		newinc = counter;
+	//	if(counter>200)
+	//		counter = 200;
+	//	playing_remaining[playing_notes-1] = counter;
+	//	newinc = counter;
 		/*for(i = 0; i < playing_notes; i++) {
 			if (playing_values[i] > newinc)
 				newinc = playing_values[i];
 		}*/
-		applyVolume();
 		increment = newinc;
 		TCNT1 = 65535 - newinc;
 	}
@@ -334,20 +338,21 @@ void noteOn(unsigned char note, unsigned char velocity) {
 void noteOff(char note) {
 	int8_t playing = isPlaying(note);
 	int i;
+	
 
-	if (playing == -1 || playing_notes == 0) { // this note is already off, no-op
+	while(TCNT0);
+	if (playing == -1) { // this note is already off, no-op
 		return;
 	}
-	
+	notes--;
 	// TODO -some kind of lock here is appropriate!
-	for(i = playing; i < playing_notes; i++) {
+	for(i = playing; i < playing_notes-1; i++) {
 		playing_values[i] = playing_values[i+1];
 		playing_values_real[i] = playing_values_real[i+1];
 
 		playing_remaining[i] = playing_remaining[i+1];
 		playing_strengths[i] = playing_strengths[i+1];
-		playing_real_strengths[i] = playing_real_strengths[i+1];
-
+		playing_strengths_real[i] = playing_strengths_real[i+1];
 		playing_notes_idx[i] = playing_notes_idx[i+1];
 	}
 	
