@@ -38,8 +38,14 @@ static char *outputName;
 
 #define MIDI_COMMAND_NOTE_OFF	0x80
 #define MIDI_COMMAND_NOTE_ON	0x90
+#define MIDI_COMMAND_PITCH_BEND 0xe0
+#define MIDI_COMMAND_SET_CONTROLLER 0xb0
 
-#define POLYPHONIC_MAX	5
+
+#define MIDI_CONTROLLER_VOLUME_C 0x07
+
+#define PITCH_BEND_ZERO		64
+#define POLYPHONIC_MAX		5
 
 static unsigned char midi_command = 0x00;
 static unsigned char midi_data1 = 0x00;
@@ -58,10 +64,12 @@ static volatile uint8_t midi_queue_front = 0;
 
 static char midi_state = MIDI_AWAITING_COMMAND;
 
+volatile uint16_t playing_values_real[POLYPHONIC_MAX];
 volatile uint16_t playing_values[POLYPHONIC_MAX];
 volatile uint16_t playing_remaining[POLYPHONIC_MAX];
 volatile uint8_t playing_strengths[POLYPHONIC_MAX];
 volatile uint8_t playing_real_strengths[POLYPHONIC_MAX];
+volatile uint8_t playing_notes_idx[POLYPHONIC_MAX];
 
 
 volatile uint8_t playing_notes = 0;
@@ -71,6 +79,96 @@ volatile uint16_t rem = 0;
 volatile uint16_t conflicts=0;
 
 volatile uint16_t notes = 0;
+
+
+volatile uint8_t volume = 0;
+
+
+void applyPitchBend();
+void applyVolume();
+
+
+// logaritmus o zakladu 1.1892 a aproximovany na int :)))
+int sortOfLog(unsigned int arg) {
+	if (arg <= 1)
+		return 0;
+	if (arg < 2)
+		return 4;
+	if (arg < 3)
+		return 6;
+	if (arg < 4)
+		return 8;
+	if (arg < 5)
+		return 9;
+	if (arg < 6)
+		return 10;
+	if (arg < 7)
+		return 11;
+	if (arg < 8)
+		return 12;
+	if (arg < 9)
+		return 13;
+	if (arg < 11)
+		return 14;
+	if (arg < 13)
+		return 15;
+	if (arg < 16)
+		return 16;
+	if (arg < 19)
+		return 17;
+	if (arg < 23)
+		return 18;
+	if (arg < 27)
+		return 19;
+	if (arg < 32)
+		return 20;
+	if (arg < 38)
+		return 21;
+	if (arg < 45)
+		return 22;
+	if (arg < 53)
+		return 23;
+	if (arg < 64)
+		return 24;
+	if (arg < 76)
+		return 25;
+	if (arg < 90)
+		return 26;
+	if (arg < 107)
+		return 27;
+	if (arg < 127)
+		return 28;
+	if (arg < 152)
+		return 29;
+	if (arg < 180)
+		return 30;
+	if (arg <= 215)
+		return 31;
+	if (arg <= 256)
+		return 32;
+	if (arg <= 304)
+		return 33;
+	if (arg <= 362)
+		return 34;
+	if (arg <= 430)
+		return 35;
+	if (arg <= 511)
+		return 36;
+	if (arg <= 608)
+		return 37;
+	if (arg <= 724)
+		return 38;
+	if (arg <= 860)
+		return 39;
+	if (arg <= 1024)
+		return 40;
+	if (arg <= 1217)
+		return 41;
+	return 42;
+
+
+}
+
 void timer1MidiHandler() {
 	int i;
 	uint16_t newincrement = 0;
@@ -83,7 +181,6 @@ void timer1MidiHandler() {
 			//	continue;
 			//}
 			// fire the note
-			//TCNT2 = playing_strengths[i];
 			TCNT2 = 255 - playing_strengths[i];
 			TCCR2 = (1 << CS21) | (1 << CS20);
 			OUTPUT_PORT |= (1 << OUTPUT_PIN);
@@ -129,19 +226,27 @@ void timer2MidiHandler() {
 }
 
 
-inline uint16_t getNote(char index) {
-	if (index>0x10)
-		index-=0x10;
+inline uint16_t getNote(unsigned char index) {
+	if (index>12)
+		index-=12;
 	else
-		index=0x00;
+		index=0;
 	return pgm_read_word_near(midi_table + index);
 }
+
+int pitchBendVal = PITCH_BEND_ZERO;
 
 void outputDispHandlerMidi(lcd_t lcd) {
 	int i;
 	int n=0;
 	putsAtLcd("NOTES: ", &lcd[0][0]);
-	printIntAtLcd(notes, &lcd[0][8]);
+	printIntAtLcd(notes, &lcd[0][10]);
+	putsAtLcd("PitchBend: ", &lcd[1][0]);
+	printIntAtLcd(pitchBendVal, &lcd[1][10]);
+	putsAtLcd("Volume: ", &lcd[2][0]);
+	printIntAtLcd(volume, &lcd[2][10]);
+
+
 /*	for(i = 0; i < playing_notes; i++) {
 		n = n + printIntAtLcd(playing_values[i], &lcd[0][n]);
 		n = n + putsAtLcd("(", &lcd[0][n]);
@@ -155,38 +260,42 @@ int8_t isPlaying(char index) {
 	uint16_t note = getNote(index);
 	int i;
 	for( i = 0; i < POLYPHONIC_MAX; i++) {
-		if (playing_values[i] == note)
+		if (playing_notes_idx[i] == index)
 			return i;
 	}
 	return -1;
 }
 
-void limitPower() {
+void applyVolume() {
 	int i;
+	uint16_t coe = sortOfLog((int)volume*(POLYPHONIC_MAX/playing_notes))*6;
+	if (coe > 1 )
+		coe--;
+	coe = 255-coe;
 	for(i = 0; i < playing_notes; i++) {
-		uint8_t coe = playing_notes*(playing_notes+1)*(playing_notes);
-		if ( playing_real_strengths[i] < coe )
-			coe = playing_notes*(playing_notes+1);
-		if ( playing_real_strengths[i] < coe )
-			coe = 0;
-		playing_strengths[i] = playing_real_strengths[i]-coe;
+		if ( playing_real_strengths[i] < coe)
+			playing_strengths[i] = 0;
+		else
+			playing_strengths[i] = playing_real_strengths[i]-coe;
 	}
 }
 
 static uint8_t counter = 0;
+
 void noteOn(unsigned char note, unsigned char velocity) {
 	if (note == 0x00 || playing_notes == POLYPHONIC_MAX)
 		return;
 	notes++;
-	uint8_t strength = velocity/2; // TODO - some magic here
+	uint8_t strength = velocity; // TODO - some magic here
 	int8_t playing = isPlaying(note);
 	if (playing != -1) { // this note is already on, just change velocity
 		playing_strengths[playing] = strength;
 		return;
 	}
-	playing_values[playing_notes] = getNote(note);
+	playing_values_real[playing_notes] = getNote(note);
+	playing_values[playing_notes] = playing_values_real[playing_notes];
 	playing_remaining[playing_notes] = playing_values[playing_notes];
-	//playing_remaining[playing_notes] = counter;
+	playing_notes_idx[playing_notes] = note;
 
 	// quick and dirty fix to limit power on higher levels
 	if (strength > playing_values[playing_notes]/2)
@@ -196,6 +305,8 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	playing_real_strengths[playing_notes] = strength;
 
 	playing_notes++;
+	
+
 
 	if (playing_notes == 1) {
 		TCCR1B = (1 << CS10) | (1 << CS11);
@@ -204,14 +315,20 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	} else {
 		int i;
 		uint16_t newinc = 5;
-/*		for(i = 0; i < playing_notes; i++) {
+		if(counter>200)
+			counter = 200;
+		playing_remaining[playing_notes] = counter;
+		newinc = counter;
+		/*for(i = 0; i < playing_notes; i++) {
 			if (playing_values[i] > newinc)
 				newinc = playing_values[i];
-		}
-		limitPower();*/
+		}*/
+		applyVolume();
 		increment = newinc;
 		TCNT1 = 65535 - newinc;
 	}
+	applyVolume();
+	applyPitchBend();
 }
 
 void noteOff(char note) {
@@ -225,8 +342,13 @@ void noteOff(char note) {
 	// TODO -some kind of lock here is appropriate!
 	for(i = playing; i < playing_notes; i++) {
 		playing_values[i] = playing_values[i+1];
+		playing_values_real[i] = playing_values_real[i+1];
+
 		playing_remaining[i] = playing_remaining[i+1];
 		playing_strengths[i] = playing_strengths[i+1];
+		playing_real_strengths[i] = playing_real_strengths[i+1];
+
+		playing_notes_idx[i] = playing_notes_idx[i+1];
 	}
 	
 	playing_notes--;
@@ -234,11 +356,29 @@ void noteOff(char note) {
 		// no point in having timer running
 		TCCR0 = 0;
 	} else {
-		limitPower();
+		applyVolume();
 	}
 
 }
 
+
+void setPitchBend(unsigned int value) {
+	pitchBendVal=(value >> 6) - 64;
+	applyPitchBend();
+}
+
+void applyPitchBend() {
+	int i;
+	for(i = 0; i < playing_notes; i++) {
+		playing_values[i]=playing_values_real[i]+pitchBendVal;
+	}
+}
+
+
+void setVolume(unsigned char value) {
+	volume = value;
+	applyVolume();
+}
 
 ISR(USART0_RX_vect) {
 	int8_t f = midi_queue_rear - midi_queue_front;
@@ -263,9 +403,14 @@ void outputLoopHandlerMidi() {
 		midi_queue_front = (midi_queue_front + 1) % MIDI_QUEUE_SIZE;
 		switch (midi_state) {
 			case MIDI_AWAITING_COMMAND:
+				//printHexLcd(packet);
+				//while(1);
 				packet = packet & 0xf0;
+				
 				if (	packet == MIDI_COMMAND_NOTE_ON || 
-					packet == MIDI_COMMAND_NOTE_OFF ) {
+					packet == MIDI_COMMAND_NOTE_OFF ||
+					packet == MIDI_COMMAND_PITCH_BEND ||
+					packet == MIDI_COMMAND_SET_CONTROLLER) {
 						midi_command = packet;
 						midi_state = MIDI_AWAITING_DATA1;
 	
@@ -289,6 +434,12 @@ void outputLoopHandlerMidi() {
 					noteOff(midi_data1 & 0x7f);
 				else if (midi_command == MIDI_COMMAND_NOTE_ON)
 					noteOn(midi_data1 & 0x7f, midi_data2 & 0x7f);
+				else if (midi_command == MIDI_COMMAND_PITCH_BEND) 
+					setPitchBend((((unsigned int)midi_data2) << 6) | midi_data1);
+				else if (midi_command == MIDI_COMMAND_SET_CONTROLLER && 
+					midi_data1 == MIDI_CONTROLLER_VOLUME_C) {
+						setVolume(midi_data2);
+				}
 
 				break;
 		}
@@ -311,7 +462,6 @@ void outputMidiInit() {
 	
 	UBRR0H = 0;
 	UBRR0L = 31;
-
 	UCSR0A = 0;
 	UCSR0B |= (1 << RXEN0) | (1 << RXCIE0);
 	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
