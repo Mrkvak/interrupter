@@ -359,7 +359,8 @@ void noteOff(char note) {
 	playing_notes--;
 	if (playing_notes == 0) {
 		// no point in having timer running
-		TCCR0 = 0;
+		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
+		TCCR1B = 0;
 	} else {
 		applyVolume();
 	}
@@ -400,7 +401,8 @@ void outputLoopHandlerMidi() {
 	unsigned char packet;
 	if(!enabled) {
 		playing_notes = 0;
-		TCCR0 = 0;
+		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
+		TCCR1B = 0;
 	}
 	counter++;
 	while (midi_queue_rear != midi_queue_front) {
@@ -522,6 +524,8 @@ void outputLoopHandlerNormal() {
 	bon=adcGet(ADC_BURST_ON)/32;
 	boff=adcGet(ADC_BURST_OFF)/32;
 
+	if(enabled)
+		TCCR1B = (1 << CS12); // start period counter
 	//ontime=tmp*((ONTIME_MAX-ONTIME_MIN)/(ADC_WIDTH_MAX-ADC_WIDTH_MIN))+ONTIME_MIN; // fuck it, I'd have to implement floating point operations :(
 
 	// TODO: implement some duty cycle limiting!!!
@@ -561,7 +565,7 @@ void outputNormalInit() {
 	timer0Handler = NULL;
 	timer2Handler = NULL;
 	dispHandler = &outputDispHandlerNormal;
-	TCCR1B = (1 << CS12);
+//	TCCR1B = (1 << CS12);
 	ETIMSK |= (1 << TOIE3);
 	TIMSK |= (1 << TOIE1);
 	TCNT1 = 0;
@@ -614,7 +618,7 @@ inline void outputDisable() {
 ISR(TIMER0_OVF_vect) {
 	if(!enabled || locked) {
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
-		TCNT0=255-IDLE_PERIOD_8;
+		TCCR0 = 0;
 		return;
 	}
 	if(timer0Handler != NULL)
@@ -624,7 +628,7 @@ ISR(TIMER0_OVF_vect) {
 ISR(TIMER1_OVF_vect) {
 	if(!enabled || locked) {
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
-		TCNT1=65535-IDLE_PERIOD;
+		TCCR1B = 0;
 		return;
 	}
 	if(timer1Handler != NULL)
@@ -642,7 +646,7 @@ ISR(TIMER2_OVF_vect) {
 ISR(TIMER3_OVF_vect) {
 	if(!enabled || locked) {
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
-		TCNT3=65535-IDLE_PERIOD;
+		TCCR3B = 0;
 		return;
 	}
 	if(timer3Handler != NULL)
