@@ -173,9 +173,39 @@ int sortOfLog(unsigned int arg) {
 		return 42;
 	if (arg <= 1721)
 		return 43;
-	if (arg <= 2435)
+	if (arg <= 2047)
 		return 44;
-	return 45;
+	if (arg <= 2543) 
+		return 45;
+	if (arg <= 2895)
+		return 46;
+	if (arg <= 3443)
+		return 47;
+	if (arg <= 4094)
+		return 48;
+	if (arg <= 4869)
+		return 49;
+	if (arg <= 5790)
+		return 50;
+	if (arg <= 6886)
+		return 51;
+	if (arg <= 8189)
+		return 52;
+	if (arg <= 9738)
+		return 53;
+	if (arg <= 11581)
+		return 54;
+	if (arg <= 13772)
+		return 55;
+	if (arg <= 16378)
+		return 56;
+	if (arg <= 19477)
+		return 57;
+	if (arg <= 23162)
+		return 58;
+	if (arg <= 27545)
+		return 59;
+	return 60;
 }
 
 void timer1MidiHandler() {
@@ -209,26 +239,7 @@ void timer1MidiHandler() {
 	TCNT1 = newincrement;
 	increment = 65535 - newincrement;
 }
-/*
-void timer0MidiHandler() {
-	int i;
-	for (i = 0; i < playing_notes; i++) {
-		playing_remaining[i]--;
-		if(playing_remaining[i] == 0) {
-			playing_remaining[i] = playing_values[i];
-			// Already playing some note. We have collision, sorry.
-			if (TCNT2 != 0)
-				continue;
 
-			// fire the note
-			//TCNT2 = playing_strengths[i];
-			TCNT2 = 255 - playing_strengths[i];
-			TCCR2 = (1 << CS21) | (1 << CS20);
-			OUTPUT_PORT |= (1 << OUTPUT_PIN);
-		}
-	}
-}
-*/
 void timer2MidiHandler() {
         OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
 	TCCR2 = 0;
@@ -262,8 +273,7 @@ void outputDispHandlerMidi(lcd_t lcd) {
 	putsAtLcd("Volume: ", &lcd[2][0]);
 	n = 10 + printIntAtLcd(volume, &lcd[2][10]);
 	printIntAtLcd(master_volume, &lcd[2][n+2]);
-
-/*	for(i = 0; i < playing_notes; i++) {
+	/*for(i = 0; i < playing_notes; i++) {
 		n = n + printIntAtLcd(playing_values[i], &lcd[0][n]);
 		n = n + putsAtLcd("(", &lcd[0][n]);
 		n = n + printIntAtLcd(playing_strengths[i], &lcd[0][n]);
@@ -285,14 +295,13 @@ int8_t isPlaying(char index) {
 
 void applyVolume() {
 	int i;
-	//uint8_t coe = sortOfLog(((uint32_t)volume / (uint32_t)(18 - master_volume)) * (14 - 1) ) * 6;
-	uint8_t coe = 45 - sortOfLog ( ((uint16_t)volume) * ((uint16_t)master_volume) );
-
+	uint16_t vol = volume;
+	if (vol > master_volume)
+		vol = master_volume;
+	
 	for(i = 0; i < playing_notes; i++) {
-	//	if ( playing_strengths_real[i] < (coe+1))
-	//		playing_strengths[i] = 1;
-	//	else
-			playing_strengths[i] = playing_strengths_real[i]/coe;
+		uint16_t maxVeloForNote = (65535 - playing_values[i]) / 10;
+ 		playing_strengths[i] = (( ((uint16_t)playing_strengths_real[i]) * vol / 127 )  * maxVeloForNote / 127);
 	}
 }
 
@@ -302,7 +311,6 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	if (playing_notes == POLYPHONIC_MAX)
 		return;
 	notes++;
-	uint8_t strength = velocity; // TODO - some magic here
 	int8_t playing = isPlaying(note);
 	if (playing != -1) { // this note is already on, just change velocity
 	//	playing_strengths[playing] = strength;
@@ -314,12 +322,10 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	playing_remaining[playing_notes] = playing_values[playing_notes];
 	playing_notes_idx[playing_notes] = note;
 
-	// quick and dirty fix to limit power on higher levels
-	if (strength > ((65535-playing_values_real[playing_notes])/5))
-		strength = (65535-playing_values_real[playing_notes])/5;
+	uint16_t maxVeloForNote = (65535 - playing_values[playing_notes]) / 10;
 
-	playing_strengths[playing_notes] = strength;
-	playing_strengths_real[playing_notes] = strength;
+	playing_strengths[playing_notes] = (( ((uint16_t)velocity) * maxVeloForNote) / 127);
+	playing_strengths_real[playing_notes] = velocity;
 
 	playing_notes++;
 	
@@ -332,14 +338,6 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	} else {
 		int i;
 		uint16_t newinc = 5;
-	//	if(counter>200)
-	//		counter = 200;
-	//	playing_remaining[playing_notes-1] = counter;
-	//	newinc = counter;
-		/*for(i = 0; i < playing_notes; i++) {
-			if (playing_values[i] > newinc)
-				newinc = playing_values[i];
-		}*/
 		increment = newinc;
 		TCNT1 = 65535 - newinc;
 	}
@@ -419,7 +417,7 @@ void outputLoopHandlerMidi() {
 	
 	unsigned long tmp=adcGet(ADC_WIDTH);
 	uint8_t master_old = master_volume;
-	master_volume = tmp / 64 + 1;
+	master_volume = tmp / 8 + 1;
 	if (master_old != master_volume)
 		applyVolume();
 
