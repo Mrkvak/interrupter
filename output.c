@@ -28,7 +28,9 @@ static void (*timer1Handler)(void);
 static void (*timer3Handler)(void);
 static void (*timer0Handler)(void);
 static void (*timer2Handler)(void);
+static void (*enableHandler)(void);
 
+static void normalEnableHandler();
 
 static char *outputName;
 
@@ -86,6 +88,8 @@ volatile uint8_t volume = 0;
 
 void applyPitchBend();
 void applyVolume();
+
+void outputTimer1HandlerNormal();
 
 // logaritmus o zakladu 1.1892 a aproximovany na int :)))
 int sortOfLog(unsigned int arg) {
@@ -228,6 +232,12 @@ void timer2MidiHandler() {
 	TCNT2 = 0;
 }
 
+void normalEnableHandler() {
+	if (enabled == 0) {
+		outputTimer1HandlerNormal();
+		enabled = 1;
+	}
+}
 
 inline uint16_t getNote(unsigned char index) {
 	if (index>12)
@@ -456,10 +466,11 @@ void outputLoopHandlerMidi() {
 
 
 void outputMidiInit() {
+	enableHandler = NULL;
 	outputName = "MIDI";
 	OUTPUT_DDR |= (1 << OUTPUT_PIN);
 	loopHandler = outputLoopHandlerMidi;
-
+	
 	timer1Handler = timer1MidiHandler;
 	timer0Handler = NULL;
 	timer2Handler = timer2MidiHandler;
@@ -558,6 +569,7 @@ void outputDispHandlerNormal(lcd_t lcd) {
 }
 
 void outputNormalInit() {
+	enableHandler = &normalEnableHandler;
 	OUTPUT_DDR |= (1 << OUTPUT_PIN);
 	loopHandler = &outputLoopHandlerNormal;
 	timer1Handler = &outputTimer1HandlerNormal;
@@ -572,7 +584,6 @@ void outputNormalInit() {
 	TCNT3 = 0;
 	outputName = "INT";
 	sei();
-
 }
 
 
@@ -608,7 +619,10 @@ char isLocked() {
 }
 
 inline void outputEnable() {
-	enabled = 1;
+	if (enableHandler != NULL)
+		enableHandler();
+	else
+		enabled = 1;
 }
 
 inline void outputDisable() {
