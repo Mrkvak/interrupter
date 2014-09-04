@@ -285,15 +285,14 @@ int8_t isPlaying(char index) {
 
 void applyVolume() {
 	int i;
-	uint8_t coe = sortOfLog(((uint32_t)volume / (uint32_t)(18 - master_volume)) * (14 - playing_notes) ) * 6;
-	if (coe > 1 )
-		coe--;
-	coe = 255-coe;
+	//uint8_t coe = sortOfLog(((uint32_t)volume / (uint32_t)(18 - master_volume)) * (14 - 1) ) * 6;
+	uint8_t coe = 45 - sortOfLog ( ((uint16_t)volume) * ((uint16_t)master_volume) );
+
 	for(i = 0; i < playing_notes; i++) {
-		if ( playing_strengths_real[i] < (coe+1))
-			playing_strengths[i] = 1;
-		else
-			playing_strengths[i] = playing_strengths_real[i]-coe;
+	//	if ( playing_strengths_real[i] < (coe+1))
+	//		playing_strengths[i] = 1;
+	//	else
+			playing_strengths[i] = playing_strengths_real[i]/coe;
 	}
 }
 
