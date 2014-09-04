@@ -84,6 +84,8 @@ volatile uint16_t notes = 0;
 
 
 volatile uint8_t volume = 0;
+volatile uint8_t master_volume = 1;
+
 
 
 void applyPitchBend();
@@ -179,6 +181,7 @@ int sortOfLog(unsigned int arg) {
 void timer1MidiHandler() {
 	int i;
 	uint16_t newincrement = 0;
+	uint8_t toset=0;
 	for (i = 0; i < playing_notes; i++) {
 		playing_remaining[i] += increment;
 		if(playing_remaining[i] == 65535) {
@@ -257,8 +260,8 @@ void outputDispHandlerMidi(lcd_t lcd) {
 	putsAtLcd("PitchBend: ", &lcd[1][0]);
 	printIntAtLcd(pitchBendVal, &lcd[1][10]);
 	putsAtLcd("Volume: ", &lcd[2][0]);
-	printIntAtLcd(volume, &lcd[2][10]);
-
+	n = 10 + printIntAtLcd(volume, &lcd[2][10]);
+	printIntAtLcd(master_volume, &lcd[2][n+2]);
 
 /*	for(i = 0; i < playing_notes; i++) {
 		n = n + printIntAtLcd(playing_values[i], &lcd[0][n]);
@@ -282,7 +285,7 @@ int8_t isPlaying(char index) {
 
 void applyVolume() {
 	int i;
-	uint8_t coe = sortOfLog((unsigned int)volume*(10-playing_notes))*6;
+	uint8_t coe = sortOfLog(((uint32_t)volume / (uint32_t)(18 - master_volume)) * (14 - playing_notes) ) * 6;
 	if (coe > 1 )
 		coe--;
 	coe = 255-coe;
@@ -414,6 +417,13 @@ void outputLoopHandlerMidi() {
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
 		TCCR1B = 0;
 	}
+	
+	unsigned long tmp=adcGet(ADC_WIDTH);
+	uint8_t master_old = master_volume;
+	master_volume = tmp / 64 + 1;
+	if (master_old != master_volume)
+		applyVolume();
+
 	counter++;
 	while (midi_queue_rear != midi_queue_front) {
 		packet = midi_queue[midi_queue_front];
@@ -651,6 +661,12 @@ ISR(TIMER1_OVF_vect) {
 
 
 ISR(TIMER2_OVF_vect) {
+	if(!enabled || locked) {
+		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
+		TCCR2 = 0;
+		return;
+	}
+
 	if(timer2Handler != NULL)
 		timer2Handler();
 }
