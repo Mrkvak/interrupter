@@ -1,8 +1,6 @@
 #ifndef __DISPLAY_H__
 #define __DISPLAY_H__
 
-#define LCD_AUX_MASK	((1<<LCD_RS) | (1<<LCD_RW) | (1<<LCD_ENA))
-
 #define LCD_FLAG_RS		1
 #define LCD_FLAG_RW		2
 

@@ -9,8 +9,10 @@ void sendLcd(char data, char flags) {
 	while(!canSendLcd());
 
 	LCD_DATA_PORT = data;
-	LCD_AUX_PORT &= ~(LCD_AUX_MASK);
-	
+	LCD_AUX_PORT &= ~(1<<LCD_RS);
+	LCD_AUX_PORT &= ~(1<<LCD_RW);
+	LCD_AUX_PORT &= ~(1<<LCD_ENA);
+
 	if(flags & LCD_RS)
 		LCD_AUX_PORT |= (1<<LCD_RS);
 	if(flags & LCD_RW)
@@ -24,7 +26,9 @@ void sendLcd(char data, char flags) {
 
 void initLcd() {
 	LCD_DATA_DDR = 0xff;
-	LCD_AUX_DDR |= LCD_AUX_MASK;
+	LCD_AUX_DDR |= (1<<LCD_RS);
+	LCD_AUX_DDR |= (1<<LCD_RW);
+	LCD_AUX_DDR |= (1<<LCD_ENA);
 
 	_delay_ms(10);
 	sendLcd(0b00110000, 0);
