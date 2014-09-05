@@ -2,6 +2,7 @@
 #define __OUTPUT_H__
 #include "config.h"
 #include "display.h"
+#include <stdint.h>
 
 void outputInit();
 
@@ -29,4 +30,7 @@ void outputTimerOccured();
 void outputDispOccured();
 
 char *getOutputName();
+
+uint8_t canSendLcd();
+
 #endif

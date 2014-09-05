@@ -28,6 +28,8 @@ static void (*timer1Handler)(void);
 static void (*timer3Handler)(void);
 static void (*timer0Handler)(void);
 static void (*timer2Handler)(void);
+static uint8_t (*doCanSendLcd)(void);
+
 static void (*enableHandler)(void);
 
 static void normalEnableHandler();
@@ -62,8 +64,6 @@ static volatile unsigned char midi_queue[MIDI_QUEUE_SIZE];
 static volatile uint8_t midi_queue_rear = 0;
 static volatile uint8_t midi_queue_front = 0;
 
-
-
 static char midi_state = MIDI_AWAITING_COMMAND;
 
 volatile uint16_t playing_values_real[POLYPHONIC_MAX];
@@ -86,12 +86,29 @@ volatile uint16_t notes = 0;
 volatile uint8_t volume = 0;
 volatile uint8_t master_volume = 1;
 
-
-
 void applyPitchBend();
 void applyVolume();
 
 void outputTimer1HandlerNormal();
+
+
+uint8_t canSendLcdMidi() {
+	if (TCNT2 > 220 || TCNT1 > 65533)
+		return 0;
+	return 1;
+}
+
+uint8_t canSendLcdNormal() {
+	if (TCNT3 > 65200)
+		return 0;
+	return 1;
+}
+
+uint8_t canSendLcd() {
+	if(doCanSendLcd != NULL)
+		return doCanSendLcd();
+	return 1;
+}
 
 // logaritmus o zakladu 1.1892 a aproximovany na int :)))
 int sortOfLog(unsigned int arg) {
@@ -212,6 +229,7 @@ void timer1MidiHandler() {
 	int i;
 	uint16_t newincrement = 0;
 	uint8_t toset=0;
+	
 	for (i = 0; i < playing_notes; i++) {
 		playing_remaining[i] += increment;
 		if(playing_remaining[i] == 65535) {
@@ -298,7 +316,6 @@ void applyVolume() {
 	uint16_t vol = volume;
 	if (vol > master_volume)
 		vol = master_volume;
-	
 	for(i = 0; i < playing_notes; i++) {
 		uint16_t maxVeloForNote = (65535 - playing_values[i]) / 10;
  		playing_strengths[i] = (( ((uint16_t)playing_strengths_real[i]) * vol / 127 )  * maxVeloForNote / 127);
@@ -316,6 +333,7 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	//	playing_strengths[playing] = strength;
 		return;
 	}
+
 
 	playing_values_real[playing_notes] = getNote(note);
 	playing_values[playing_notes] = playing_values_real[playing_notes];
@@ -341,6 +359,7 @@ void noteOn(unsigned char note, unsigned char velocity) {
 		increment = newinc;
 		TCNT1 = 65535 - newinc;
 	}
+
 	applyVolume();
 	applyPitchBend();
 }
@@ -354,7 +373,9 @@ void noteOff(char note) {
 	if (playing == -1) { // this note is already off, no-op
 		return;
 	}
+
 	notes--;
+
 	// TODO -some kind of lock here is appropriate!
 	for(i = playing; i < playing_notes-1; i++) {
 		playing_values[i] = playing_values[i+1];
@@ -367,6 +388,7 @@ void noteOff(char note) {
 	}
 	
 	playing_notes--;
+
 	if (playing_notes == 0) {
 		// no point in having timer running
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
@@ -427,8 +449,6 @@ void outputLoopHandlerMidi() {
 		midi_queue_front = (midi_queue_front + 1) % MIDI_QUEUE_SIZE;
 		switch (midi_state) {
 			case MIDI_AWAITING_COMMAND:
-				//printHexLcd(packet);
-				//while(1);
 				packet = packet & 0xf0;
 				
 				if (	packet == MIDI_COMMAND_NOTE_ON || 
@@ -482,6 +502,7 @@ void outputMidiInit() {
 	timer0Handler = NULL;
 	timer2Handler = timer2MidiHandler;
 	timer3Handler = NULL;
+	doCanSendLcd = &canSendLcdMidi;
 
 	dispHandler = &outputDispHandlerMidi;
 	
@@ -584,6 +605,7 @@ void outputNormalInit() {
 	timer0Handler = NULL;
 	timer2Handler = NULL;
 	dispHandler = &outputDispHandlerNormal;
+	doCanSendLcd = &canSendLcdNormal;
 //	TCCR1B = (1 << CS12);
 	ETIMSK |= (1 << TOIE3);
 	TIMSK |= (1 << TOIE1);

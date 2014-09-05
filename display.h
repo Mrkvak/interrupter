@@ -25,7 +25,7 @@ void initLcd();
 
 void redrawLcd(char lcdptr[LCD_LINES][LCD_CHARS]);
 
-void printIntLcd(long i);
+void printIntLcd(int i);
 
 void printUIntLcd(unsigned long i);
 

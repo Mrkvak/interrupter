@@ -2,10 +2,15 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include "display.h"
+#include "output.h"
+
 
 void sendLcd(char data, char flags) {
+	while(!canSendLcd());
+
 	LCD_DATA_PORT = data;
 	LCD_AUX_PORT &= ~(LCD_AUX_MASK);
+	
 	if(flags & LCD_RS)
 		LCD_AUX_PORT |= (1<<LCD_RS);
 	if(flags & LCD_RW)
@@ -55,7 +60,7 @@ void redrawLcd(char lcdptr[LCD_LINES][LCD_CHARS]) {
 
 #define NUMBER_BUF_SIZE 10
 
-void printIntLcd(long i) {
+void printIntLcd(int i) {
 	if(i == 0) {
 		sendLcd('0', LCD_FLAG_RS);
 		return;
