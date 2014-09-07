@@ -24,7 +24,7 @@
 // we want max rep. at 1kHz
 // that means 1ms
 // and that means at 16MHz CPU / 256
-// (in clock oscillator cycles
+// (in clock oscillator cycles)
 //
 #define PERIOD_MIN	63
 #define PERIOD_MAX	65535
