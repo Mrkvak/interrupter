@@ -93,14 +93,14 @@ void outputTimer1HandlerNormal();
 
 
 uint8_t canSendLcdMidi() {
-	if (TCNT2 > 220 || TCNT1 > 65533)
-		return 0;
+//	if (TCNT2 > 220 || TCNT1 > 65533)
+//		return 0;
 	return 1;
 }
 
 uint8_t canSendLcdNormal() {
-	if (TCNT3 > 65200)
-		return 0;
+//	if (TCNT3 > 65200)
+//		return 0;
 	return 1;
 }
 
