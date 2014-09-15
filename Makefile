@@ -2,8 +2,8 @@ MCU=atmega64
 CC=avr-gcc
 OBJCOPY=avr-objcopy
 PROJECT=main
-CFLAGS=-mmcu=$(MCU) -O3
-OBJS=display.o main.o adc.o output.o input.o menu.o
+CFLAGS=-mmcu=$(MCU) -O3 -Wall
+OBJS=display.o main.o adc.o output.o output_midi.o output_normal.o input.o menu.o
 
 all: clean $(PROJECT).hex
 

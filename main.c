@@ -1,8 +1,11 @@
 #include "config.h"
 #include "display.h"
 #include "adc.h"
-#include "output.h"
+#include "output_normal.h"
+#include "output_midi.h"
 #include <util/delay.h>
+#include "input.h"
+#include "menu.h"
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -27,13 +30,9 @@ int main() {
 		}
 	}
 
-	long rotaryPos=0;
-
 	unsigned int heartbeat=0;
 	unsigned int buttons=0;
 	
-	int state=0;
-
 	buttons = buttonsHandle();
 	if(buttons & BTN_SHOOT) {
 		mainLock();
@@ -44,12 +43,11 @@ int main() {
 	outputMidiInit();
 	while(1) {
 		heartbeat++;
-//		rotaryPos += handleRotary();
 		buttons = buttonsHandle();
 		outputHandleLoop();
 
 		if(isLocked()) {
-			if((!buttons & BTN_SHOOT)) {
+			if(! (buttons & BTN_SHOOT)) {
 				mainUnlock();
 				break;
 			}

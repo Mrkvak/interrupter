@@ -12,7 +12,7 @@
 
 // line order is 1 3 2 4, counted from zero 0 2 1 3
 // oh god, why?
-static const char LCD_ORDER[]={0,2,1,3};
+static const unsigned char LCD_ORDER[]={0,2,1,3};
 
 typedef char lcd_t[LCD_LINES][LCD_CHARS];
 

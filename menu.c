@@ -2,6 +2,9 @@
 #include <util/delay.h>
 #include "display.h"
 #include "input.h"
+#include "output.h"
+#include "output_midi.h"
+#include "output_normal.h"
 
 #define NULL 0
 #define TYPE_MENU	0
@@ -61,7 +64,7 @@ void changeOutputType(void *t) {
 	
 }
 
-void drawMenuItem(lcd_t lcd, menuitem_t *mi, char line, char selected) {
+void drawMenuItem(lcd_t lcd, menuitem_t *mi, unsigned char line, char selected) {
 	putsAtLcd(mi->label, &lcd[line][1]);
 	
 	if (selected == SELECTED_LABEL)
@@ -89,7 +92,7 @@ void drawMenuItem(lcd_t lcd, menuitem_t *mi, char line, char selected) {
 }
 
 static	menulist_t mode_int, mode_midi;
-static	menuitem_t mm_0, mm_1;
+static	menuitem_t mm_0;
 
 void menuInit() {
 	mode_int.id 	= MODE_INT;
@@ -119,9 +122,6 @@ void menuInit() {
 void menuEnter(lcd_t lcd) {
 	int rot = 0;
 	int btn = 0;
-
-	int page = 1;
-	int pages = 1;
 
 	int loops=0;
 

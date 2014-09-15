@@ -51,7 +51,7 @@ void initLcd() {
 }
 
 void redrawLcd(char lcdptr[LCD_LINES][LCD_CHARS]) {
-	int c,l;
+	unsigned int c,l;
 	// clear and return at 0x00
 	sendLcd(0x01, 0);
 	_delay_ms(3);
