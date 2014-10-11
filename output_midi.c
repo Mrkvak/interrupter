@@ -72,7 +72,7 @@ volatile uint8_t volume = 0;
 volatile uint8_t master_volume = 1;
 
 
-#define ONTIME_BUCKET_MAX 2000
+#define ONTIME_BUCKET_MAX 5000
 #define ONTIME_BUCKET_INC 1000
 
 
@@ -238,7 +238,7 @@ void timer1MidiHandler() {
 		newincrement = playing_remaining[0];
 	} else {
 	}
-
+	applyVolume();
 	TCNT1 = newincrement;
 	increment = 65535 - newincrement;
 }
@@ -310,7 +310,11 @@ void applyVolume() {
 		
 		//if (maxVeloForNote > 127)
 			maxVeloForNote = 127;
- 		playing_strengths[i] = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ) * maxVeloForNote / 127);
+		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ) * maxVeloForNote / 127);
+		if (newStrength > playing_strengths[i])
+			playing_strengths[i] = playing_strengths[i]+1;
+		else
+			playing_strengths[i] = newStrength;
 	}
 }
 
