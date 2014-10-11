@@ -73,6 +73,8 @@ void outputLoopHandlerNormal() {
 
 	if(isEnabled())
 		TCCR1B = (1 << CS12); // start period counter
+	else
+		TCCR1B = 0;
 	//ontime=tmp*((ONTIME_MAX-ONTIME_MIN)/(ADC_WIDTH_MAX-ADC_WIDTH_MIN))+ONTIME_MIN; // fuck it, I'd have to implement floating point operations :(
 
 	// TODO: implement some duty cycle limiting!!!
