@@ -237,10 +237,10 @@ void timer1MidiHandler() {
 		newincrement = playing_remaining[0];
 	} else {
 	}
-	//applyVolume();
+	applyVolume();
 	TCNT1 += newincrement;
 	if (TCNT1 < 30000) {
-		newincrement -= TCNT1;
+		newincrement -= TCNT1 - 1;
 		TCNT1 = 65534;
 	}
 
