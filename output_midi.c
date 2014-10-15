@@ -72,7 +72,7 @@ volatile uint8_t volume = 0;
 volatile uint8_t master_volume = 1;
 
 
-#define ONTIME_BUCKET_MAX 5000
+#define ONTIME_BUCKET_MAX 15000
 #define ONTIME_BUCKET_INC 1000
 
 
@@ -206,10 +206,9 @@ int sortOfLog(unsigned int arg) {
 void timer1MidiHandler() {
 	int i;
 	uint16_t newincrement = 0;
-	
 	for (i = 0; i < playing_notes; i++) {
 		playing_remaining[i] += increment;
-		if(playing_remaining[i] == 65535) {
+		if ((playing_remaining[i] == 65535) || (playing_remaining[i] < 30000) ) {
 			playing_remaining[i] = playing_values[i];
 			// Already playing some note. We have collision, sorry.
 	//		if (TCNT2 != 0) {
@@ -238,8 +237,13 @@ void timer1MidiHandler() {
 		newincrement = playing_remaining[0];
 	} else {
 	}
-	applyVolume();
-	TCNT1 = newincrement;
+	//applyVolume();
+	TCNT1 += newincrement;
+	if (TCNT1 < 30000) {
+		newincrement -= TCNT1;
+		TCNT1 = 65534;
+	}
+
 	increment = 65535 - newincrement;
 }
 
