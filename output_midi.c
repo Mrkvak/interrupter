@@ -30,7 +30,7 @@ static unsigned volatile int boff_remaining = 0;
 
 #define MIDI_CONTROLLER_VOLUME_C 0x07
 
-#define PITCH_BEND_ZERO		64
+#define PITCH_BEND_ZERO		0
 #define POLYPHONIC_MAX		7
 
 static unsigned char midi_command = 0x00;
