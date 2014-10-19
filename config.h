@@ -1,4 +1,8 @@
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
+
 #define F_CPU 16000000UL
+#include <stdint.h>
 
 #define LCD_DATA_PORT	PORTB
 #define LCD_DATA_DDR	DDRB
@@ -52,3 +56,7 @@
 #define BTN_SHOOT       0x80
 
 #define NULL 0
+
+uint8_t midi_velocity;
+
+#endif

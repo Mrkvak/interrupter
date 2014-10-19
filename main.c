@@ -40,7 +40,7 @@ int main() {
 
 	menuInit();
 //	outputNormalInit();
-	outputMidiInit();
+//	outputMidiInit();
 	while(1) {
 		heartbeat++;
 		buttons = buttonsHandle();

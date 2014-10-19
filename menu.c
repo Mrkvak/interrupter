@@ -5,11 +5,15 @@
 #include "output.h"
 #include "output_midi.h"
 #include "output_normal.h"
+#include <avr/eeprom.h>
 
-#define NULL 0
+
 #define TYPE_MENU	0
 #define TYPE_INT	1
 #define TYPE_LIST	2
+
+#define EEPROM_MODE	0
+#define EEPROM_VELOCITY 1
 
 #define SELECTED_NONE  0x00
 #define SELECTED_LABEL 0x01
@@ -18,7 +22,11 @@
 #define MODE_INT	0
 #define MODE_MIDI 	1
 
+#define DISABLED	0
+#define ENABLED		1
+
 const char *modes[2] = { "INT", "MIDI" };
+const char *bools[2] = { "DIS", "ENA" };
 
 #define FLAG_SELECTED 1
 
@@ -61,8 +69,18 @@ void changeOutputType(void *t) {
 			outputMidiInit();
 			break;
 	}
+	eeprom_write_byte((uint8_t*)EEPROM_MODE, ml->id);
 	
 }
+
+void changeVelocity(void *t) {
+	menulist_t *ml = (menulist_t *)t;
+	while(ml->next != NULL && !(ml->flags & FLAG_SELECTED))
+		ml=ml->next;
+	midi_velocity = ml->id;
+	eeprom_write_byte((uint8_t*)EEPROM_VELOCITY, midi_velocity);
+}	
+
 
 void drawMenuItem(lcd_t lcd, menuitem_t *mi, unsigned char line, char selected) {
 	putsAtLcd(mi->label, &lcd[line][1]);
@@ -92,9 +110,11 @@ void drawMenuItem(lcd_t lcd, menuitem_t *mi, unsigned char line, char selected) 
 }
 
 static	menulist_t mode_int, mode_midi;
-static	menuitem_t mm_0;
+static	menulist_t velo_disabled, velo_enabled;
+static	menuitem_t mm_0, mm_1; 
 
 void menuInit() {
+	uint8_t tmp;
 	mode_int.id 	= MODE_INT;
 	mode_int.label	= modes[MODE_INT];
 	mode_int.next	= &mode_midi;
@@ -107,15 +127,59 @@ void menuInit() {
 	mode_midi.prev	= &mode_int;
 	mode_midi.flags	= 0;
 
-	mm_0.label = "Mode:";
+	velo_enabled.id		= ENABLED;
+	velo_enabled.label	= bools[ENABLED];
+	velo_enabled.next	= &velo_disabled;
+	velo_enabled.prev	= NULL;
+	velo_enabled.flags	= FLAG_SELECTED;
 
-	mm_0.parent = NULL;
-	
-	mm_0.next = NULL;
+	velo_disabled.id	= DISABLED;
+	velo_disabled.label	= bools[DISABLED];
+	velo_disabled.next	= NULL;
+	velo_disabled.prev	= &velo_enabled;
+	velo_disabled.flags	= 0;
+
+
+	mm_0.label = "Mode:";
+	mm_0.parent = NULL;	
+	mm_0.next = &mm_1;
 	mm_0.prev = NULL;
 	mm_0.type = TYPE_LIST;
 	mm_0.value = &mode_int;
 	mm_0.callback = &changeOutputType;
+
+	mm_1.label = "Velocity:";
+	mm_1.parent = NULL;
+	mm_1.next = NULL;
+	mm_1.prev = &mm_0;
+	mm_1.value = &velo_enabled;
+	mm_1.callback = &changeVelocity;
+	mm_1.type = TYPE_LIST;
+
+
+	tmp = eeprom_read_byte((uint8_t*)EEPROM_MODE);
+
+	if (tmp == MODE_INT) {
+		mode_int.flags = FLAG_SELECTED;
+		mode_midi.flags = 0;
+		outputNormalInit();
+	} else {
+		mode_midi.flags = FLAG_SELECTED;
+		mode_int.flags = 0;
+		outputMidiInit();
+	}
+
+	tmp = eeprom_read_byte((uint8_t*)EEPROM_VELOCITY);
+
+	if (tmp == ENABLED) {
+		velo_enabled.flags = FLAG_SELECTED;
+		velo_disabled.flags = 0;
+		midi_velocity = ENABLED;
+	} else {
+		velo_disabled.flags = FLAG_SELECTED;
+		velo_enabled.flags = 0;
+		midi_velocity = DISABLED;
+	}
 
 }
 

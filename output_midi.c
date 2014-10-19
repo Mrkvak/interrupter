@@ -334,6 +334,8 @@ void noteOn(unsigned char note, unsigned char velocity) {
 		return;
 	}
 
+	if (!midi_velocity)
+		velocity = 127;
 
 	playing_values_real[playing_notes] = getNote(note);
 	playing_values[playing_notes] = playing_values_real[playing_notes];
