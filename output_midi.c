@@ -216,7 +216,7 @@ void timer1MidiHandler() {
 	//		}
 			// fire the note
 			uint8_t val;
-			if(playing_strengths[i] > ontime_bucket)
+			if (playing_strengths[i] > ontime_bucket)
 				val = ontime_bucket;
 			else
 				val = playing_strengths[i];
@@ -276,8 +276,6 @@ void outputDispHandlerMidi(lcd_t lcd) {
 	int n=0;
 	putsAtLcd("NOTES: ", &lcd[0][0]);
 	printIntAtLcd(playing_notes, &lcd[0][10]);
-	//if (ontime_bucket == 0)
-	//	putsAtLcd("LIM", &lcd[0][15]);
 	printIntAtLcd(ontime_bucket, &lcd[0][13]);
 
 	putsAtLcd("PitchBend: ", &lcd[1][0]);
@@ -285,13 +283,6 @@ void outputDispHandlerMidi(lcd_t lcd) {
 	putsAtLcd("Volume: ", &lcd[2][0]);
 	n = 10 + printIntAtLcd(volume, &lcd[2][10]);
 	printIntAtLcd(master_volume, &lcd[2][n+2]);
-	/*for(i = 0; i < playing_notes; i++) {
-		n = n + printIntAtLcd(playing_values[i], &lcd[0][n]);
-		n = n + putsAtLcd("(", &lcd[0][n]);
-		n = n + printIntAtLcd(playing_strengths[i], &lcd[0][n]);
-		putsAtLcd(") ", &lcd[0][n]);
-		n = n + 2;
-	}*/
 }
 
 int8_t isPlaying(char index) {
@@ -315,9 +306,13 @@ void applyVolume() {
 		//if (maxVeloForNote > 127)
 			maxVeloForNote = 127;
 		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ) * maxVeloForNote / 127);
-		if (newStrength > playing_strengths[i])
-			playing_strengths[i] = playing_strengths[i]+1;
-		else
+		if (newStrength > playing_strengths[i]) {
+			uint8_t inc = (newStrength - playing_strengths[i]);
+			if (inc > noteMaxInc)
+				inc = noteMaxInc;
+
+			playing_strengths[i] = playing_strengths[i]+inc;
+		} else 
 			playing_strengths[i] = newStrength;
 	}
 }
@@ -329,8 +324,7 @@ void noteOn(unsigned char note, unsigned char velocity) {
 		return;
 	notes++;
 	int8_t playing = isPlaying(note);
-	if (playing != -1) { // this note is already on, just change velocity
-	//	playing_strengths[playing] = strength;
+	if (playing != -1) { // this note is already on
 		return;
 	}
 
@@ -342,9 +336,14 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	playing_remaining[playing_notes] = playing_values[playing_notes];
 	playing_notes_idx[playing_notes] = note;
 
-	uint16_t maxVeloForNote = (65535 - playing_values[playing_notes]) / 10;
+//	uint16_t maxVeloForNote = (65535 - playing_values[playing_notes]) / 10;
+	
+	if (noteMaxInc > velocity)
+		playing_strengths[playing_notes] = velocity;
+	else
+		 playing_strengths[playing_notes] = noteMaxInc;
 
-	playing_strengths[playing_notes] = (( ((uint16_t)velocity) * maxVeloForNote) / 127);
+//	playing_strengths[playing_notes] = (( ((uint16_t)velocity) * maxVeloForNote) / 127);
 	playing_strengths_real[playing_notes] = velocity;
 
 	playing_notes++;

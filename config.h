@@ -58,5 +58,6 @@
 #define NULL 0
 
 uint8_t midi_velocity;
-
+uint8_t noteMaxInc;
+uint8_t noteMaxDec; 
 #endif

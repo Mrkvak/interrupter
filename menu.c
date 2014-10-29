@@ -11,9 +11,12 @@
 #define TYPE_MENU	0
 #define TYPE_INT	1
 #define TYPE_LIST	2
+#define TYPE_SHORT_POS	3
 
 #define EEPROM_MODE	0
 #define EEPROM_VELOCITY 1
+#define EEPROM_MAXINC	2
+#define EEPROM_MAXDEC	3
 
 #define SELECTED_NONE  0x00
 #define SELECTED_LABEL 0x01
@@ -82,6 +85,15 @@ void changeVelocity(void *t) {
 }	
 
 
+void changeMaxInc(void *t) {
+	eeprom_write_byte((uint8_t*)EEPROM_MAXINC, noteMaxInc);
+}
+
+void changeMaxDec(void *t) {
+	eeprom_write_byte((uint8_t*)EEPROM_MAXDEC, noteMaxDec);
+}
+
+
 void drawMenuItem(lcd_t lcd, menuitem_t *mi, unsigned char line, char selected) {
 	putsAtLcd(mi->label, &lcd[line][1]);
 	
@@ -94,6 +106,7 @@ void drawMenuItem(lcd_t lcd, menuitem_t *mi, unsigned char line, char selected) 
 	int i;
 	switch (mi->type) {
 		case TYPE_INT:
+		case TYPE_SHORT_POS:
 			printIntAtLcd(*(int*)(mi->value), &lcd[line][11]);
 			break;
 
@@ -111,7 +124,7 @@ void drawMenuItem(lcd_t lcd, menuitem_t *mi, unsigned char line, char selected) 
 
 static	menulist_t mode_int, mode_midi;
 static	menulist_t velo_disabled, velo_enabled;
-static	menuitem_t mm_0, mm_1; 
+static	menuitem_t mm_0, mm_1, mm_2, mm_3; 
 
 void menuInit() {
 	uint8_t tmp;
@@ -138,8 +151,7 @@ void menuInit() {
 	velo_disabled.next	= NULL;
 	velo_disabled.prev	= &velo_enabled;
 	velo_disabled.flags	= 0;
-
-
+	
 	mm_0.label = "Mode:";
 	mm_0.parent = NULL;	
 	mm_0.next = &mm_1;
@@ -150,11 +162,28 @@ void menuInit() {
 
 	mm_1.label = "Velocity:";
 	mm_1.parent = NULL;
-	mm_1.next = NULL;
+	mm_1.next = &mm_2;
 	mm_1.prev = &mm_0;
 	mm_1.value = &velo_enabled;
 	mm_1.callback = &changeVelocity;
 	mm_1.type = TYPE_LIST;
+
+	mm_2.label = "MaxInc:";
+	mm_2.parent = NULL;
+	mm_2.next = &mm_3;
+	mm_2.prev = &mm_1;
+	mm_2.value = &noteMaxInc;
+	mm_2.callback = &changeMaxInc;
+	mm_2.type = TYPE_SHORT_POS;
+
+	mm_3.label = "MaxDec:";
+	mm_3.parent = NULL;
+	mm_3.next = NULL;
+	mm_3.prev = &mm_2;
+	mm_3.value = &noteMaxDec;
+	mm_3.callback = &changeMaxDec;
+	mm_3.type = TYPE_SHORT_POS;
+
 
 
 	tmp = eeprom_read_byte((uint8_t*)EEPROM_MODE);
@@ -180,6 +209,10 @@ void menuInit() {
 		velo_enabled.flags = 0;
 		midi_velocity = DISABLED;
 	}
+	
+	noteMaxInc = eeprom_read_byte((uint8_t*)EEPROM_MAXINC);
+	noteMaxDec = eeprom_read_byte((uint8_t*)EEPROM_MAXDEC);
+
 
 }
 
@@ -213,10 +246,9 @@ void menuEnter(lcd_t lcd) {
 		clearLcd(lcd);
 		loops = 0;
 		int *tmpi;
-
+		
 		switch (state) {
 			case SELECTED_NONE:
-				putsAtLcd("N", &lcd[3][0]);
 				if (btn & BTN_CANCEL) {
 
 					if (cur->parent == NULL) {
@@ -229,16 +261,17 @@ void menuEnter(lcd_t lcd) {
 
 				if (btn & BTN_CONFIRM) {
 					state = SELECTED_LABEL;
-					putsAtLcd("L", &lcd[3][0]);
 					waitForRelease(BTN_CONFIRM);
 				}
 
 				while ((rot < 0) && (cur->prev != NULL)) {
 					cur = cur->prev;
+					rot++;
 				}
 				
 				while ((rot > 0) && (cur->next != NULL)) {
 					cur = cur->next;
+					rot--;
 				}
 
 				break;
@@ -261,6 +294,14 @@ void menuEnter(lcd_t lcd) {
 							tmpi = (int*)cur->value;
 							*tmpi += rot;
 							break;
+						case TYPE_SHORT_POS:
+							tmpi = (int*)cur->value;
+							*tmpi += rot;
+							if ( (*tmpi) < 0)
+								(*tmpi) = 0;
+							if ( (*tmpi) > 255)
+								(*tmpi) = 255;
+							break;
 						case TYPE_LIST:
 							tmp_ml = cur->value;
 							while ( !(tmp_ml->flags & FLAG_SELECTED) && tmp_ml->next != NULL)
@@ -277,10 +318,6 @@ void menuEnter(lcd_t lcd) {
 
 					}
 				}
-
-
-				putsAtLcd("L", &lcd[3][1]);
-				
 
 				break;
 		}
