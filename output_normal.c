@@ -65,11 +65,11 @@ void outputLoopHandlerNormal() {
 	long tmp=adcGet(ADC_FREQ)-ADC_FREQ_MIN;
 	//period=tmp*((PERIOD_MAX-PERIOD_MIN)/ADC_FREQ_MAX-ADC_FREQ_MIN)+PERIOD_MIN;
 	period=tmp+PERIOD_MIN;
-	tmp=adcGet(ADC_WIDTH);
+	tmp=adcGet(ADC_WIDTH)+ONTIME_MIN;
 	ontime=tmp;
 
-	bon=adcGet(ADC_BURST_ON)/32;
-	boff=adcGet(ADC_BURST_OFF)/32;
+	bon=adcGet(ADC_BURST_ON)/16;
+	boff=adcGet(ADC_BURST_OFF)/16;
 
 	if(isEnabled())
 		TCCR1B = (1 << CS12); // start period counter

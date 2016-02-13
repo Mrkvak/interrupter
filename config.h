@@ -30,7 +30,7 @@
 // and that means at 16MHz CPU / 256
 // (in clock oscillator cycles)
 //
-#define PERIOD_MIN	63
+#define PERIOD_MIN	255
 #define PERIOD_MAX	65535
 
 #define IDLE_PERIOD	1000
