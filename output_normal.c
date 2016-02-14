@@ -35,13 +35,16 @@ void normalEnableHandler() {
 // timer3 bezi rychle s periodou ONTIME_MAX
 // pri preteceni a interruptu timer3 se vypne vystup
 
+volatile char canUpdate = 1;
 void outputTimer1HandlerNormal() {
-	TCNT1 = 65535 - period;
+	canUpdate = 0;
 	TCNT3 = 65535 - ontime;
 	TCCR3B = (1 << CS31);
+	TCNT1 = 65535 - period;
 
 	if(boff == 0) {
 		OUTPUT_PORT |= (1 << OUTPUT_PIN);
+		canUpdate = 1;
 		return;
 	}
 
@@ -54,14 +57,16 @@ void outputTimer1HandlerNormal() {
 		bon_remaining = bon;
 		boff_remaining = boff;
 	}
+	canUpdate = 1;
 }
 
 void outputTimer3HandlerNormal() {
-	TCCR3B = 0;
 	OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
+	TCCR3B = 0;
 }
 
 void outputLoopHandlerNormal() {
+	while (!canUpdate);
 	long tmp=adcGet(ADC_FREQ)-ADC_FREQ_MIN;
 	//period=tmp*((PERIOD_MAX-PERIOD_MIN)/ADC_FREQ_MAX-ADC_FREQ_MIN)+PERIOD_MIN;
 	period=tmp+PERIOD_MIN;
@@ -75,6 +80,7 @@ void outputLoopHandlerNormal() {
 		TCCR1B = (1 << CS12); // start period counter
 	else
 		TCCR1B = 0;
+
 	//ontime=tmp*((ONTIME_MAX-ONTIME_MIN)/(ADC_WIDTH_MAX-ADC_WIDTH_MIN))+ONTIME_MIN; // fuck it, I'd have to implement floating point operations :(
 
 	// TODO: implement some duty cycle limiting!!!

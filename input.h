@@ -11,6 +11,8 @@ int rotaryHandle();
 
 
 char buttonsHandle();
+char buttonsHandleWait();
+
 
 void waitForRelease(char mask);
 

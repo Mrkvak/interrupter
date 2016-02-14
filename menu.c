@@ -238,7 +238,13 @@ void menuEnter(lcd_t lcd) {
 		loops++;
 		
 		rot += rotaryHandle();
-                btn = buttonsHandle();
+/*                short btmp = buttonsHandle();
+		while (btmp == -1)  {
+			btmp = buttonsHandle();
+		}
+		btn = btmp;*/
+		btn = buttonsHandleWait();
+
 		
 		if(loops < LCD_REFRESH) 
 			continue;
@@ -250,7 +256,6 @@ void menuEnter(lcd_t lcd) {
 		switch (state) {
 			case SELECTED_NONE:
 				if (btn & BTN_CANCEL) {
-
 					if (cur->parent == NULL) {
 						return;
 					}  else {

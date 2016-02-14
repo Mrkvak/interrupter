@@ -31,9 +31,9 @@ int main() {
 	}
 
 	unsigned int heartbeat=0;
-	unsigned int buttons=0;
+	unsigned char buttons=0;
 	
-	buttons = buttonsHandle();
+	buttons = buttonsHandleWait();
 	if(buttons & BTN_SHOOT) {
 		mainLock();
 	}
@@ -43,7 +43,10 @@ int main() {
 //	outputMidiInit();
 	while(1) {
 		heartbeat++;
-		buttons = buttonsHandle();
+		char tmp = buttonsHandle();
+		if (tmp != -1)
+			buttons = tmp;
+		
 		outputHandleLoop();
 
 		if(isLocked()) {
@@ -71,6 +74,7 @@ int main() {
 		if(buttons & BTN_CONFIRM) {
 			mainLock();
 			menuEnter(lcd);
+			buttons = buttonsHandleWait();
 			mainUnlock();
 		}
 

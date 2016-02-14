@@ -20,6 +20,11 @@
 #define OUTPUT_PORT	PORTE
 #define	OUTPUT_PIN	PE3
 
+#define DEBOUNCE_WAIT_LOOPS	16
+
+#define DEBOUNCE_CALLS 16
+
+
 // this is in clock cycles (with clk/8 prescaler)
 // that effectively means 0.5us with 16MHz osc
 #define ONTIME_MIN	20

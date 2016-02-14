@@ -20,7 +20,7 @@ $(PROJECT).out : $(OBJS)
 asm : $(PROJECT).c 
 	$(CC) $(CFLAGS) -S $(PROJECT).c
 load: $(PROJECT).hex
-	avrdude -c usbtiny -p m64 -U flash:w:$(PROJECT).hex -B 2
+	avrdude -c usbtiny -p m64 -U flash:w:$(PROJECT).hex
 reset:
 	avrdude -c usbtiny -p m64
 clean:

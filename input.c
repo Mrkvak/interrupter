@@ -39,15 +39,44 @@ int rotaryHandle() {
 void waitForRelease(char mask) {
 	char buttons;
 	while(1) {
-		buttons = (buttonsHandle() & mask);
+		buttons = (buttonsHandleWait() & mask);
 		if (! ((buttons & BTN_CANCEL) || (buttons & BTN_CONFIRM) || (buttons & BTN_SHOOT)))
 			break;
 	}
 	return;
 }
 
-
-char buttonsHandle() {
-	return ~(BTNPIN & (BTN_CANCEL | BTN_CONFIRM | BTN_SHOOT));
+char buttonsHandleWait() {
+	char ok = 0;
+	int btnData;
+	while(!ok) {
+		btnData = ~(BTNPIN & (BTN_CANCEL | BTN_CONFIRM | BTN_SHOOT));
+		ok = 1;
+		unsigned char i;
+		for (i = 0; i < DEBOUNCE_WAIT_LOOPS; i++) {
+			if (btnData != ~(BTNPIN & (BTN_CANCEL | BTN_CONFIRM | BTN_SHOOT))) {
+				// bounce, lets try again
+				ok = 0;
+				break;
+			}
+		}
+	}
+		
+	return btnData;
 }
 
+short prevButtonData;
+short buttonDataOkay = 0;
+char buttonsHandle() {
+	if ( prevButtonData == ~(BTNPIN & (BTN_CANCEL | BTN_CONFIRM | BTN_SHOOT)) ) {
+		buttonDataOkay++;
+		if ( buttonDataOkay == DEBOUNCE_CALLS)
+			return prevButtonData;
+		else
+			return -1;
+	} else {
+		buttonDataOkay = 0;
+		prevButtonData = ~(BTNPIN & (BTN_CANCEL | BTN_CONFIRM | BTN_SHOOT));
+		return -1;
+	}
+}
