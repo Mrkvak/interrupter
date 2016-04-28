@@ -40,8 +40,6 @@ static unsigned char midi_data2 = 0x00;
 #define MIDI_QUEUE_SIZE	64
 #define MIDI_TIMER0_LOOP 0
 
-#define NOTE_TRANSPOSE_DOWN 0x10
-
 static volatile unsigned char midi_queue[MIDI_QUEUE_SIZE];
 static volatile uint8_t midi_queue_rear = 0;
 static volatile uint8_t midi_queue_front = 0;
@@ -301,11 +299,7 @@ void applyVolume() {
 	if (vol > master_volume)
 		vol = master_volume;
 	for(i = 0; i < playing_notes; i++) {
-		uint16_t maxVeloForNote = (65535 - playing_values[i]) / 10;
-		
-		//if (maxVeloForNote > 127)
-			maxVeloForNote = 127;
-		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ) * maxVeloForNote / 127);
+		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ));
 		if (newStrength > playing_strengths[i]) {
 			uint8_t inc = (newStrength - playing_strengths[i]);
 			if (inc > noteMaxInc)
