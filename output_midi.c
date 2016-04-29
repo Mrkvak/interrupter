@@ -40,6 +40,8 @@ static unsigned char midi_data2 = 0x00;
 #define MIDI_QUEUE_SIZE	64
 #define MIDI_TIMER0_LOOP 0
 
+#define CHANNELS_MAX 16
+
 static volatile unsigned char midi_queue[MIDI_QUEUE_SIZE];
 static volatile uint8_t midi_queue_rear = 0;
 static volatile uint8_t midi_queue_front = 0;
@@ -52,6 +54,16 @@ volatile uint16_t playing_remaining[POLYPHONIC_MAX];
 volatile uint8_t playing_strengths[POLYPHONIC_MAX];
 volatile uint8_t playing_strengths_real[POLYPHONIC_MAX];
 volatile uint8_t playing_notes_idx[POLYPHONIC_MAX];
+
+volatile uint8_t playing_notes_channels[POLYPHONIC_MAX];
+volatile uint8_t channel_volumes[CHANNELS_MAX];
+
+volatile uint16_t pitchbend_values[CHANNELS_MAX];
+
+
+
+
+
 
 
 volatile uint16_t ontime_bucket = 0;
@@ -66,7 +78,6 @@ volatile uint16_t conflicts=0;
 volatile uint16_t notes = 0;
 
 
-volatile uint8_t volume = 0;
 volatile uint8_t master_volume = 1;
 
 
@@ -268,25 +279,20 @@ inline uint16_t getNote(unsigned char index) {
 	return pgm_read_word_near(midi_table + index);
 }
 
-int pitchBendVal = PITCH_BEND_ZERO;
 
 void outputDispHandlerMidi(lcd_t lcd) {
-	int n=0;
 	putsAtLcd("NOTES: ", &lcd[0][0]);
 	printIntAtLcd(playing_notes, &lcd[0][10]);
 	printIntAtLcd(ontime_bucket, &lcd[0][13]);
 
-	putsAtLcd("PitchBend: ", &lcd[1][0]);
-	printIntAtLcd(pitchBendVal, &lcd[1][10]);
 	putsAtLcd("Volume: ", &lcd[2][0]);
-	n = 10 + printIntAtLcd(volume, &lcd[2][10]);
-	printIntAtLcd(master_volume, &lcd[2][n+2]);
+	printIntAtLcd(master_volume, &lcd[2][10]);
 }
 
-int8_t isPlaying(char index) {
+int8_t isPlaying(char index, uint8_t channel) {
 	int i;
 	for( i = 0; i < playing_notes; i++) {
-		if (playing_notes_idx[i] == index)
+		if (playing_notes_idx[i] == index && playing_notes_channels[i] == channel)
 			return i;
 	}
 	return -1;
@@ -295,10 +301,11 @@ int8_t isPlaying(char index) {
 
 void applyVolume() {
 	int i;
-	uint16_t vol = volume;
-	if (vol > master_volume)
-		vol = master_volume;
 	for(i = 0; i < playing_notes; i++) {
+		uint16_t vol = channel_volumes[playing_notes_channels[i]];
+		if (vol > master_volume)
+			vol = master_volume;
+
 		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ));
 		if (newStrength > playing_strengths[i]) {
 			uint8_t inc = (newStrength - playing_strengths[i]);
@@ -313,11 +320,11 @@ void applyVolume() {
 
 static uint8_t counter = 0;
 
-void noteOn(unsigned char note, unsigned char velocity) {
+void noteOn(unsigned char note, unsigned char velocity, uint8_t channel) {
 	if (playing_notes == POLYPHONIC_MAX)
 		return;
 	notes++;
-	int8_t playing = isPlaying(note);
+	int8_t playing = isPlaying(note, channel);
 	if (playing != -1) { // this note is already on
 		return;
 	}
@@ -329,7 +336,7 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	playing_values[playing_notes] = playing_values_real[playing_notes];
 	playing_remaining[playing_notes] = playing_values[playing_notes];
 	playing_notes_idx[playing_notes] = note;
-
+	playing_notes_channels[playing_notes] = channel;
 //	uint16_t maxVeloForNote = (65535 - playing_values[playing_notes]) / 10;
 	
 	if (noteMaxInc > velocity)
@@ -358,8 +365,8 @@ void noteOn(unsigned char note, unsigned char velocity) {
 	applyPitchBend();
 }
 
-void noteOff(char note) {
-	int8_t playing = isPlaying(note);
+void noteOff(char note, uint8_t channel) {
+	int8_t playing = isPlaying(note, channel);
 	unsigned int i;
 	
 
@@ -394,21 +401,21 @@ void noteOff(char note) {
 }
 
 
-void setPitchBend(unsigned int value) {
-	pitchBendVal=(value >> 6) - 64;
+void setPitchBend(unsigned int value, uint8_t channel) {
+	pitchbend_values[channel]=(value >> 6) - 64;
 	applyPitchBend();
 }
 
 void applyPitchBend() {
 	int i;
 	for(i = 0; i < playing_notes; i++) {
-		playing_values[i]=playing_values_real[i]+pitchBendVal;
+		playing_values[i]=playing_values_real[i]+pitchbend_values[playing_notes_channels[i]];
 	}
 }
 
 
-void setVolume(unsigned char value) {
-	volume = value;
+void setVolume(unsigned char value, uint8_t channel) {
+	channel_volumes[channel] = value;
 	applyVolume();
 }
 
@@ -424,7 +431,8 @@ ISR(USART0_RX_vect) {
 
 
 void outputLoopHandlerMidi() {
-	unsigned char packet;
+	uint8_t packet;
+	uint8_t channel = 0;
 	if(!isEnabled()) {
 		playing_notes = 0;
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
@@ -443,8 +451,8 @@ void outputLoopHandlerMidi() {
 		midi_queue_front = (midi_queue_front + 1) % MIDI_QUEUE_SIZE;
 		switch (midi_state) {
 			case MIDI_AWAITING_COMMAND:
+				channel = packet & 0x0f;
 				packet = packet & 0xf0;
-				
 				if (	packet == MIDI_COMMAND_NOTE_ON || 
 					packet == MIDI_COMMAND_NOTE_OFF ||
 					packet == MIDI_COMMAND_PITCH_BEND ||
@@ -469,14 +477,14 @@ void outputLoopHandlerMidi() {
 				midi_state = MIDI_AWAITING_COMMAND;
 
 				if (midi_command == MIDI_COMMAND_NOTE_OFF || ((midi_command == MIDI_COMMAND_NOTE_ON) && midi_data2 == 0x00)) // thanks MIDI guys... why have NOTE_OFF event and not using it?
-					noteOff(midi_data1 & 0x7f);
+					noteOff(midi_data1 & 0x7f, channel);
 				else if (midi_command == MIDI_COMMAND_NOTE_ON)
-					noteOn(midi_data1 & 0x7f, midi_data2 & 0x7f);
+					noteOn(midi_data1 & 0x7f, midi_data2 & 0x7f, channel);
 				else if (midi_command == MIDI_COMMAND_PITCH_BEND) 
-					setPitchBend((((unsigned int)midi_data2) << 6) | midi_data1);
+					setPitchBend((((unsigned int)midi_data2) << 6) | midi_data1, channel);
 				else if (midi_command == MIDI_COMMAND_SET_CONTROLLER && 
 					midi_data1 == MIDI_CONTROLLER_VOLUME_C) {
-						setVolume(midi_data2);
+						setVolume(midi_data2, channel);
 				}
 
 				break;
@@ -485,6 +493,12 @@ void outputLoopHandlerMidi() {
 }
 
 void outputMidiInit() {
+	int i;
+	for (i=0; i<CHANNELS_MAX; i++) {
+		channel_volumes[i]=100;
+		pitchbend_values[i]=0;
+	}
+
 	enableHandler = NULL;
 	outputName = "MIDI";
 	OUTPUT_DDR |= (1 << OUTPUT_PIN);
@@ -510,6 +524,7 @@ void outputMidiInit() {
 
 	TCNT3 = 55535;
 	
+
 	sei();
 }
 
