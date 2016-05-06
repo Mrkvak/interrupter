@@ -61,6 +61,7 @@ volatile uint8_t channel_volumes[CHANNELS_MAX];
 volatile uint16_t pitchbend_values[CHANNELS_MAX];
 
 
+volatile uint8_t channel = 0;
 
 
 
@@ -281,19 +282,47 @@ inline uint16_t getNote(unsigned char index) {
 
 
 void outputDispHandlerMidi(lcd_t lcd) {
-	putsAtLcd("NOTES: ", &lcd[0][0]);
-	printIntAtLcd(playing_notes, &lcd[0][10]);
-	printIntAtLcd(ontime_bucket, &lcd[0][13]);
+/*	printIntAtLcd(channel_volumes[0], &lcd[0][0]);
+	printIntAtLcd(channel_volumes[1], &lcd[0][5]);
+	printIntAtLcd(channel_volumes[2], &lcd[0][10]);
+	printIntAtLcd(channel_volumes[3], &lcd[0][15]);
+	printIntAtLcd(channel_volumes[4], &lcd[1][0]);
+	printIntAtLcd(channel_volumes[5], &lcd[1][5]);
+	printIntAtLcd(channel_volumes[6], &lcd[1][10]);
+	printIntAtLcd(channel_volumes[7], &lcd[1][15]);
+	printIntAtLcd(channel_volumes[8], &lcd[2][0]);
+	printIntAtLcd(channel_volumes[9], &lcd[2][5]);
+	printIntAtLcd(channel_volumes[10], &lcd[2][10]);
+	printIntAtLcd(channel_volumes[11], &lcd[2][15]);
+*/
+	int i;
+	for(i = 0; i < playing_notes; i++) {
+                uint16_t vol = channel_volumes[playing_notes_channels[i]];
+                 if (vol > master_volume)
+                         vol = master_volume;
+ 
+                 uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)    vol / 127 ));
+		printIntAtLcd(newStrength, &lcd[0][i*4]);
+	}
 
-	putsAtLcd("Volume: ", &lcd[2][0]);
-	printIntAtLcd(master_volume, &lcd[2][10]);
+
+//	putsAtLcd("NOTES: ", &lcd[0][0]);
+//	printIntAtLcd(playing_notes, &lcd[0][10]);
+	printIntAtLcd(ontime_bucket, &lcd[2][0]);
+
+//	putsAtLcd("Volume: ", &lcd[2][0]);
+//	printIntAtLcd(master_volume, &lcd[2][10]);
 }
 
 int8_t isPlaying(char index, uint8_t channel) {
 	int i;
 	for( i = 0; i < playing_notes; i++) {
-		if (playing_notes_idx[i] == index && playing_notes_channels[i] == channel)
+//		if (playing_notes_idx[i] == index && playing_notes_channels[i] == channel)
+//			return i;
+		if (playing_notes_idx[i] == index)
 			return i;
+
+
 	}
 	return -1;
 }
@@ -307,13 +336,14 @@ void applyVolume() {
 			vol = master_volume;
 
 		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ));
+		/*
 		if (newStrength > playing_strengths[i]) {
 			uint8_t inc = (newStrength - playing_strengths[i]);
 			if (inc > noteMaxInc)
 				inc = noteMaxInc;
 
 			playing_strengths[i] = playing_strengths[i]+inc;
-		} else 
+		} else */
 			playing_strengths[i] = newStrength;
 	}
 }
@@ -386,6 +416,7 @@ void noteOff(char note, uint8_t channel) {
 		playing_strengths[i] = playing_strengths[i+1];
 		playing_strengths_real[i] = playing_strengths_real[i+1];
 		playing_notes_idx[i] = playing_notes_idx[i+1];
+		playing_notes_channels[i] = playing_notes_channels[i+1];
 	}
 	
 	playing_notes--;
@@ -432,7 +463,6 @@ ISR(USART0_RX_vect) {
 
 void outputLoopHandlerMidi() {
 	uint8_t packet;
-	uint8_t channel = 0;
 	if(!isEnabled()) {
 		playing_notes = 0;
 		OUTPUT_PORT &= ~(1 << OUTPUT_PIN);
