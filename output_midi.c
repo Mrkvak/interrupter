@@ -65,6 +65,13 @@ volatile uint8_t channel = 0;
 
 
 
+volatile uint8_t volume_correction = 0;
+#define VOLDEC_STEP 7
+#define VOLINC_STEP 1
+#define ONTIME_BUCKET_VOLDEC_THR 5000
+#define ONTIME_BUCKET_VOLINC_THR 14500
+
+
 
 
 volatile uint16_t ontime_bucket = 0;
@@ -269,6 +276,17 @@ void timer3MidiHandler() {
 		ontime_bucket = ONTIME_BUCKET_MAX;
 	else
 		ontime_bucket += ONTIME_BUCKET_INC;
+	
+	if (ontime_bucket < ONTIME_BUCKET_VOLDEC_THR) {
+		volume_correction += VOLDEC_STEP;
+	} else if (ontime_bucket > ONTIME_BUCKET_VOLINC_THR && volume_correction != 0) {
+		if (volume_correction < VOLINC_STEP) {
+			volume_correction = 0;
+		} else {
+			volume_correction -= VOLINC_STEP;
+		}
+	}
+
 	TCNT3 = 55535;
 }
 
@@ -304,7 +322,7 @@ void outputDispHandlerMidi(lcd_t lcd) {
                  uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)    vol / 127 ));
 		printIntAtLcd(newStrength, &lcd[0][i*4]);
 	}
-
+	
 
 //	putsAtLcd("NOTES: ", &lcd[0][0]);
 //	printIntAtLcd(playing_notes, &lcd[0][10]);
@@ -313,6 +331,9 @@ void outputDispHandlerMidi(lcd_t lcd) {
 	putsAtLcd("VOL: ", &lcd[2][12]);
 	printIntAtLcd(master_volume, &lcd[2][16]);
 
+	if (volume_correction != 0) {
+		putsAtLcd("!", &lcd[2][19]);
+	}
 //	putsAtLcd("Volume: ", &lcd[2][0]);
 //	printIntAtLcd(master_volume, &lcd[2][10]);
 }
@@ -335,19 +356,14 @@ void applyVolume() {
 	int i;
 	for(i = 0; i < playing_notes; i++) {
 		uint16_t vol = channel_volumes[playing_notes_channels[i]];
-//		if (vol > master_volume)
-//			vol = master_volume;
-
 		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ) * (uint16_t)master_volume / 127);
-		/*
-		if (newStrength > playing_strengths[i]) {
-			uint8_t inc = (newStrength - playing_strengths[i]);
-			if (inc > noteMaxInc)
-				inc = noteMaxInc;
+		if (newStrength > volume_correction) {
+			newStrength -= volume_correction;
+		} else {
+			newStrength = 1;
+		}
 
-			playing_strengths[i] = playing_strengths[i]+inc;
-		} else */
-			playing_strengths[i] = newStrength;
+		playing_strengths[i] = newStrength;
 	}
 }
 
