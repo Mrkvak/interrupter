@@ -308,7 +308,10 @@ void outputDispHandlerMidi(lcd_t lcd) {
 
 //	putsAtLcd("NOTES: ", &lcd[0][0]);
 //	printIntAtLcd(playing_notes, &lcd[0][10]);
-	printIntAtLcd(ontime_bucket, &lcd[2][0]);
+	putsAtLcd("LIMIT: ",  &lcd[2][0]);
+	printIntAtLcd(ontime_bucket, &lcd[2][6]);
+	putsAtLcd("VOL: ", &lcd[2][12]);
+	printIntAtLcd(master_volume, &lcd[2][16]);
 
 //	putsAtLcd("Volume: ", &lcd[2][0]);
 //	printIntAtLcd(master_volume, &lcd[2][10]);
@@ -332,10 +335,10 @@ void applyVolume() {
 	int i;
 	for(i = 0; i < playing_notes; i++) {
 		uint16_t vol = channel_volumes[playing_notes_channels[i]];
-		if (vol > master_volume)
-			vol = master_volume;
+//		if (vol > master_volume)
+//			vol = master_volume;
 
-		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ));
+		uint16_t newStrength = (( ((uint16_t)playing_strengths_real[i]) * (uint16_t)vol / 127 ) * (uint16_t)master_volume / 127);
 		/*
 		if (newStrength > playing_strengths[i]) {
 			uint8_t inc = (newStrength - playing_strengths[i]);
